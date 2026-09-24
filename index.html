@@ -523,6 +523,11 @@ document.getElementById('tabSubcats').addEventListener('click',()=>{
 });
 document.getElementById('btnCloseCatDetail').addEventListener('click',closeAllOverlays);
 
+// ── CAPTURA SEGURA DE MONTOS (evita que flecha del teclado Android altere el valor) ──
+let _montoGasto = '', _montoIngreso = '';
+document.getElementById('gastoMonto').addEventListener('input', e=>{ _montoGasto = e.target.value; });
+document.getElementById('ingresoMonto').addEventListener('input', e=>{ _montoIngreso = e.target.value; });
+
 // ── GASTO MODAL ───────────────────────────────────────────────────────────────
 function loadCatSelect(selectedCatId){
   const sel=document.getElementById('gastoCat');
@@ -538,7 +543,7 @@ document.getElementById('gastoCat').addEventListener('change',e=>loadSubcatSelec
 function openNewGasto(){
   editingGastoId=null;
   document.getElementById('gastoModalTitle').textContent='Nuevo Gasto';
-  document.getElementById('gastoMonto').value=''; document.getElementById('gastoNota').value='';
+  _montoGasto=''; document.getElementById('gastoMonto').value=''; document.getElementById('gastoNota').value='';
   document.getElementById('gastoFecha').value=todayStr(); document.getElementById('btnDeleteGasto').style.display='none';
   loadCatSelect(sortCats(categories)[0]?.id); openOverlay('overlayGasto');
   setTimeout(()=>document.getElementById('gastoMonto').focus(),300);
@@ -547,7 +552,7 @@ function openEditGasto(id){
   const g=gastos.find(x=>x.id===id); if(!g) return;
   editingGastoId=id;
   document.getElementById('gastoModalTitle').textContent='Editar Gasto';
-  document.getElementById('gastoMonto').value=g.monto||''; document.getElementById('gastoNota').value=g.nota||'';
+  _montoGasto=String(g.monto||''); document.getElementById('gastoMonto').value=_montoGasto; document.getElementById('gastoNota').value=g.nota||'';
   document.getElementById('gastoFecha').value=g.fecha||todayStr(); document.getElementById('btnDeleteGasto').style.display='block';
   loadCatSelect(g.catId); loadSubcatSelect(g.catId,g.subcat); openOverlay('overlayGasto');
 }
@@ -556,7 +561,7 @@ document.getElementById('btnCancelGasto').addEventListener('click',closeAllOverl
 document.getElementById('btnSaveGasto').addEventListener('click',async()=>{
   const catId=document.getElementById('gastoCat').value;
   const subcat=document.getElementById('gastoSubcat').value;
-  const monto=parseFloat(document.getElementById('gastoMonto').value);
+  const monto=parseFloat(_montoGasto||document.getElementById('gastoMonto').value);
   const nota=document.getElementById('gastoNota').value.trim();
   const fecha=document.getElementById('gastoFecha').value;
   if(!catId||!monto||!fecha){showToast('Completa todos los campos');return;}
@@ -575,13 +580,13 @@ document.getElementById('btnDeleteGasto').addEventListener('click',()=>{
 
 // ── INGRESO MODAL ─────────────────────────────────────────────────────────────
 document.getElementById('btnNewIncome').addEventListener('click',()=>{
-  document.getElementById('ingresoDesc').value=''; document.getElementById('ingresoMonto').value='';
+  _montoIngreso=''; document.getElementById('ingresoDesc').value=''; document.getElementById('ingresoMonto').value='';
   openOverlay('overlayIngreso'); setTimeout(()=>document.getElementById('ingresoDesc').focus(),300);
 });
 document.getElementById('btnCancelIngreso').addEventListener('click',closeAllOverlays);
 document.getElementById('btnSaveIngreso').addEventListener('click',async()=>{
   const desc=document.getElementById('ingresoDesc').value.trim();
-  const monto=parseFloat(document.getElementById('ingresoMonto').value);
+  const monto=parseFloat(_montoIngreso||document.getElementById('ingresoMonto').value);
   if(!desc||!monto){showToast('Completa todos los campos');return;}
   await addDoc(ingresosRef,{desc,monto,fecha:todayStr(),mes:viewMonth,createdAt:Date.now()});
   showToast('Ingreso guardado'); closeAllOverlays();
