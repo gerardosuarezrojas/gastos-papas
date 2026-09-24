@@ -192,7 +192,7 @@ button{-webkit-tap-highlight-color:transparent;cursor:pointer;border:none;backgr
     <div class="modal-title" id="gastoModalTitle">Nuevo Gasto</div>
     <div class="field"><label>Categoría</label><select id="gastoCat"></select></div>
     <div class="field"><label>Subcategoría</label><select id="gastoSubcat"></select></div>
-    <div class="field"><label>Monto</label><input type="number" inputmode="decimal" id="gastoMonto" placeholder="0.00"/></div>
+    <div class="field"><label>Monto</label><input type="text" inputmode="decimal" id="gastoMonto" placeholder="0.00" autocomplete="off"/></div>
     <div class="field"><label>Anotación (opcional)</label><textarea id="gastoNota" placeholder="Notas…"></textarea></div>
     <div class="field"><label>Fecha</label><input type="date" id="gastoFecha"/></div>
     <button class="btn-primary" id="btnSaveGasto">Guardar gasto</button>
@@ -207,7 +207,7 @@ button{-webkit-tap-highlight-color:transparent;cursor:pointer;border:none;backgr
     <div class="modal-handle"></div>
     <div class="modal-title">Nuevo Ingreso</div>
     <div class="field"><label>Descripción</label><input type="text" id="ingresoDesc" placeholder="Ej. Quincena, Bono…"/></div>
-    <div class="field"><label>Monto</label><input type="number" inputmode="decimal" id="ingresoMonto" placeholder="0.00"/></div>
+    <div class="field"><label>Monto</label><input type="text" inputmode="decimal" id="ingresoMonto" placeholder="0.00" autocomplete="off"/></div>
     <button class="btn-primary" id="btnSaveIngreso">Guardar ingreso</button>
     <button class="btn-secondary" id="btnCancelIngreso">Cancelar</button>
   </div>
@@ -241,7 +241,7 @@ button{-webkit-tap-highlight-color:transparent;cursor:pointer;border:none;backgr
     <div class="modal-handle"></div>
     <div class="modal-title" id="catEditTitle">Editar Categoría</div>
     <div class="field"><label>Nombre</label><input type="text" id="catEditName"/></div>
-    <div class="field"><label>Presupuesto ($)</label><input type="number" inputmode="decimal" id="catEditBudget"/></div>
+    <div class="field"><label>Presupuesto ($)</label><input type="text" inputmode="decimal" id="catEditBudget" autocomplete="off"/></div>
     <div class="field"><label>Subcategorías (una por línea)</label><textarea id="catEditSubcats" style="height:110px"></textarea></div>
     <button class="btn-primary" id="btnSaveCatEdit">Guardar</button>
     <button class="btn-danger" id="btnDeleteCat" style="display:none">Eliminar categoría</button>
@@ -421,6 +421,23 @@ async function seedCategories(fbCats){
   window.__seeding=false;
 }
 
+// ── PRESUPUESTO POR MES ───────────────────────────────────────────────────────
+// Devuelve el presupuesto vigente para una cat en un mes dado.
+// Busca el mes exacto; si no existe, toma el más reciente anterior.
+// Migración: si solo existe budget (legacy), lo usa como fallback.
+function getBudgetForMonth(cat, mes){
+  const budgets = cat.budgets || {};
+  const keys = Object.keys(budgets).sort();
+  if(!keys.length) return cat.budget || 0; // legacy fallback
+  // buscar mes exacto o el más reciente anterior
+  const exacto = budgets[mes];
+  if(exacto !== undefined) return exacto;
+  const anteriores = keys.filter(k => k <= mes);
+  if(anteriores.length) return budgets[anteriores[anteriores.length-1]];
+  // si todos son futuros, usar el más antiguo disponible
+  return budgets[keys[0]];
+}
+
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function renderAll(){ renderBudget(); renderCatBars(); renderMoves(); }
 function monthGastos(){ return gastos.filter(g=>g.mes===viewMonth); }
@@ -444,7 +461,7 @@ function renderCatBars(){
   el.classList.add('open'); el.innerHTML='';
   sortCats(categories).forEach(cat=>{
     const gastado=mg.filter(g=>g.catId===cat.id).reduce((s,g)=>s+(g.monto||0),0);
-    const bud=cat.budget||0,pct=bud>0?Math.min((gastado/bud)*100,100):0;
+    const bud=getBudgetForMonth(cat,viewMonth),pct=bud>0?Math.min((gastado/bud)*100,100):0;
     const color=pct>=100?'var(--red)':pct>=80?'var(--yellow)':(cat.color||'var(--accent)');
     const div=document.createElement('div'); div.className='cat-bar-item';
     div.innerHTML=`<div class="cat-bar-header"><span class="cat-bar-name">${cat.name}</span><span class="cat-bar-amounts">${fmtMoney(gastado)}${bud>0?' / '+fmtMoney(bud):''}</span></div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${pct}%;background:${color}"></div></div>`;
@@ -483,7 +500,7 @@ function renderCatDetailGastos(cat){
 }
 function renderCatDetailSubcats(cat){
   const mg=monthGastos().filter(g=>g.catId===cat.id);
-  const bud=cat.budget||0;
+  const bud=getBudgetForMonth(cat,viewMonth);
   const el=document.getElementById('catDetailSubcats');
   const subcats=sortSubcats(cat.subcats||[]);
   if(!subcats.length){el.innerHTML='<p style="color:var(--text2);font-size:14px;text-align:center;padding:16px 0">Sin subcategorías</p>';return;}
@@ -602,7 +619,8 @@ function renderCatsModal(){
   sortCats(categories).forEach((c,i)=>{
     const wrap=document.createElement('div');
     const item=document.createElement('div'); item.className='cat-list-item';
-    item.innerHTML=`<div class="cat-list-dot" style="background:${c.color||CAT_COLORS[i%CAT_COLORS.length]}"></div><span class="cat-list-name">${c.name}</span><span class="cat-list-budget">${c.budget?fmtMoney(c.budget):''}</span><span class="cat-list-chevron">›</span><button class="cat-list-edit" data-id="${c.id}">✏️</button>`;
+    const bud=getBudgetForMonth(c,viewMonth);
+    item.innerHTML=`<div class="cat-list-dot" style="background:${c.color||CAT_COLORS[i%CAT_COLORS.length]}"></div><span class="cat-list-name">${c.name}</span><span class="cat-list-budget">${bud?fmtMoney(bud):''}</span><span class="cat-list-chevron">›</span><button class="cat-list-edit" data-id="${c.id}">✏️</button>`;
     const subPanel=document.createElement('div'); subPanel.className='cat-subcats-preview'; subPanel.id=`subpanel-${c.id}`;
     subPanel.innerHTML=sortSubcats(c.subcats||[]).map(s=>`<span class="subcat-chip">${s}</span>`).join('')||'<span style="font-size:11px;color:var(--text2)">Sin subcategorías</span>';
     item.addEventListener('click',()=>{ const open=subPanel.classList.toggle('open'); item.querySelector('.cat-list-chevron').textContent=open?'∨':'›'; });
@@ -616,7 +634,7 @@ function openEditCat(id){
   const cat=id?categories.find(c=>c.id===id):null;
   document.getElementById('catEditTitle').textContent=cat?'Editar Categoría':'Nueva Categoría';
   document.getElementById('catEditName').value=cat?.name||'';
-  document.getElementById('catEditBudget').value=cat?.budget||'';
+  document.getElementById('catEditBudget').value=cat?getBudgetForMonth(cat,viewMonth)||'':'';
   document.getElementById('catEditSubcats').value=cat?sortSubcats(cat.subcats||[]).join('\n'):'';
   document.getElementById('btnDeleteCat').style.display=cat?'block':'none';
   openOverlay('overlayCatEdit');
@@ -627,8 +645,16 @@ document.getElementById('btnSaveCatEdit').addEventListener('click',async()=>{
   const budget=parseFloat(document.getElementById('catEditBudget').value)||0;
   const subcats=sortSubcats(document.getElementById('catEditSubcats').value.split('\n').map(s=>s.trim()).filter(Boolean));
   if(!name){showToast('Escribe un nombre');return;}
-  if(editingCatId){ await updateDoc(doc(db,'groups',GROUP_ID,'categories',editingCatId),{name,budget,subcats}); }
-  else { await addDoc(catsRef,{name,budget,subcats,color:CAT_COLORS[categories.length%CAT_COLORS.length]}); }
+  if(editingCatId){
+    const cat=categories.find(c=>c.id===editingCatId);
+    // migrar budget legacy a budgets si aún no existe
+    const budgets=cat.budgets ? {...cat.budgets} : (cat.budget ? {'2000-01':cat.budget} : {});
+    budgets[viewMonth]=budget;
+    await updateDoc(doc(db,'groups',GROUP_ID,'categories',editingCatId),{name,budgets,subcats});
+  } else {
+    const budgets={[viewMonth]:budget};
+    await addDoc(catsRef,{name,budgets,subcats,color:CAT_COLORS[categories.length%CAT_COLORS.length]});
+  }
   showToast('Categoría guardada'); renderCatsModal(); openOverlay('overlayCats');
 });
 document.getElementById('btnDeleteCat').addEventListener('click',()=>{
